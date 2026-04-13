@@ -6,7 +6,7 @@ def createRoom(serverUrl, rooms):
     """Create a byob room via API. Returns the room URL string."""
     response = requests.post(f"{serverUrl}/api/rooms")
 
-    if response.status_code == 201:
+    if response.status_code in (200, 201):
         data = response.json()["data"]
 
         rooms.append({
