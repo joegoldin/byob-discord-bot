@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 from dotenv import load_dotenv
 
 from methods.createRoom import createRoom
@@ -8,66 +7,104 @@ from methods.queue import addToQueue
 from roomState import rooms
 
 load_dotenv()
-apiKey = os.getenv("W2G_API") 
+serverUrl = os.getenv("BYOB_SERVER", "https://byob.video")
+
 
 def get_response(message):
     p_message = message.strip()
+    lower = p_message.lower()
 
-    if "!q" in p_message[:2]:
-        if "https://" in p_message:
-            if rooms:
-                videoTitle = addToQueue(apiKey, rooms, p_message[3:])
-                return f'"{videoTitle}" added to queue! :rocket:'
+    # Queue: !q <link>
+    if lower.startswith("!q "):
+        link = p_message[3:].strip()
+        if "https://" not in link and "http://" not in link:
+            return f"'{link}' does not contain a link!"
+        if rooms:
+            success = addToQueue(serverUrl, rooms, link)
+            if success:
+                return f"Added to queue! :rocket:"
             else:
-                link = createRoom(apiKey, rooms, p_message)
-                linkToAdd = addToQueue(apiKey, rooms, p_message[3:])
-                return f"No active rooms found! :scream:\nHere's a new room for you :face_holding_back_tears::sparkles: {link}\n'{videoTitle}' added to queue!"
+                return "Failed to add to queue."
         else:
-            return f"\n'{p_message}' does not contain a link! :sneezing_face:"
+            room_url = createRoom(serverUrl, rooms)
+            addToQueue(serverUrl, rooms, link)
+            return f"No active rooms found!\nCreated a new room: {room_url}\nAdded to queue! :rocket:"
 
-    if "!w2 c" in p_message.lower():
-        if len(rooms) > 0:
-            return "Currently using room: https://w2g.tv/rooms/" + rooms[-1][0]
+    # Show current room: !byob c / !w2 c
+    if _cmd(lower, "c"):
+        if rooms:
+            return f"Current room: {rooms[-1]['url']}"
         else:
-            return "No rooms made! Try !w2 to make a room!"
+            return "No rooms made! Try !byob to make a room!"
 
-    if "!w2 ls" in p_message.lower():
-
-        if len(rooms) > 0:
-            roomsURL = ["Currently active rooms:"]
-            index = 0
-            
-            for streamKey in rooms:
-                if index == len(rooms) - 1:
-                    roomsURL.append(f"{index + 1}. https://w2g.tv/rooms/{streamKey[0]} ({streamKey[1].strftime('%m/%d : %H:%M')}) <- Using this room!")
-                else: 
-                    roomsURL.append(f"{index + 1}. https://w2g.tv/rooms/{streamKey[0]} ({streamKey[1].strftime('%m/%d : %H:%M')})")
-                index += 1
-            return "\n".join(str(url) for url in roomsURL)
+    # List rooms: !byob ls / !w2 ls
+    if _cmd(lower, "ls"):
+        if rooms:
+            lines = ["Active rooms:"]
+            for i, room in enumerate(rooms):
+                suffix = " <- current" if i == len(rooms) - 1 else ""
+                lines.append(f"{i + 1}. {room['url']} ({room['created_at'].strftime('%m/%d %H:%M')}){suffix}")
+            return "\n".join(lines)
         else:
-            return "No rooms made! Try !w2 to make a room!"
+            return "No rooms made! Try !byob to make a room!"
 
-    if "!w2 set" in p_message.lower():
+    # Set active room: !byob set <n> / !w2 set <n>
+    if _cmd(lower, "set"):
         try:
-            index = int(p_message[8:]) - 1
-            rooms.append(rooms[index])
-            rooms.pop(index)
-            return f"New current room set to: https://w2g.tv/rooms/{rooms[-1][0]}"
-        except ValueError:
-            return "Index has to be a whole number! :nerd: "
+            # Extract number after "set"
+            parts = p_message.split()
+            index = int(parts[-1]) - 1
+            room = rooms.pop(index)
+            rooms.append(room)
+            return f"Active room set to: {rooms[-1]['url']}"
+        except (ValueError, IndexError):
+            return "Usage: !byob set <room number>"
 
-    if "!w2" in p_message.lower():
-        if len(p_message) > 3 and p_message[4:12] != "https://":
-            return None
-        else:
-            return createRoom(apiKey, rooms, p_message)
+    # Create room: !byob [url] / !w2 [url]
+    if _is_base_cmd(lower):
+        url = None
+        # Extract optional URL after command
+        for prefix in ("!byob ", "!w2 "):
+            if lower.startswith(prefix):
+                rest = p_message[len(prefix):].strip()
+                if rest.startswith("http"):
+                    url = rest
+                break
 
-    if "!help" in p_message.lower():
-        return "```!w2 <optional Youtube link> 'Creates a room.'```\
-            ```!q <link> or 🚀 reaction 'Adds a video to the room.'```\
-             ```!w2 c 'Shows the room being currently used.'``` \
-             ```!w2 ls 'Shows a list of all available rooms.'``` \
-             ```!w2 set <Room number> 'Changes the main room to the specified room.'```"
-    
-    if "!ver" in p_message.lower():
-        return "Version: 2.0.1 🐳"
+        room_url = createRoom(serverUrl, rooms)
+        if url:
+            addToQueue(serverUrl, rooms, url)
+            return f"Room created: {room_url}\nAdded to queue! :rocket:"
+        return f"Room created: {room_url}"
+
+    # Help
+    if lower.startswith("!help"):
+        return (
+            "```\n"
+            "!byob [url]     Create a room (optionally with a video)\n"
+            "!q <url>         Add a video to the queue (or react with 🚀)\n"
+            "!byob c          Show the current room\n"
+            "!byob ls         List all active rooms\n"
+            "!byob set <n>    Switch to a different room\n"
+            "!help            Show this help\n"
+            "!ver             Show version\n"
+            "\n"
+            "!w2 also works as a shortcut for !byob\n"
+            "```"
+        )
+
+    # Version
+    if lower.startswith("!ver"):
+        return "byob Discord Bot v1.0.0"
+
+    return None
+
+
+def _is_base_cmd(lower):
+    """Check if message is !byob or !w2 (with or without args)."""
+    return lower.startswith("!byob") or lower.startswith("!w2")
+
+
+def _cmd(lower, sub):
+    """Check if message matches !byob <sub> or !w2 <sub>."""
+    return lower.startswith(f"!byob {sub}") or lower.startswith(f"!w2 {sub}")

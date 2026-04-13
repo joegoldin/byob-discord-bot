@@ -1,9 +1,8 @@
-import time
 import os
 import discord
 import asyncio
 
-from discord import Intents, Client, Message
+from discord import Intents, Client
 from dotenv import load_dotenv
 
 from roomState import rooms
@@ -14,65 +13,79 @@ from methods.createRoom import createRoom
 
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
-apiKey = os.getenv("W2G_API")
+serverUrl = os.getenv("BYOB_SERVER", "https://byob.video")
 
 intents = Intents.default()
 intents.message_content = True
-intents.message_content = True
-intents.reactions = True 
+intents.reactions = True
 client = Client(intents=intents)
+
 
 @client.event
 async def on_ready():
     print(f"{client.user} is now running!")
-    await set_bot_status("!w2 to create a room!")
+    await set_bot_status("!byob to create a room!")
 
     while True:
-        await asyncio.sleep(5)
+        await asyncio.sleep(30)
         runRoomCheck(rooms)
-        if (len(rooms) >= 1):
-            await set_bot_status("w2g room is open! 🚪")
+        if rooms:
+            await set_bot_status(f"byob room open! ({len(rooms)})")
         else:
-            await set_bot_status("!w2 to create a room!")
+            await set_bot_status("!byob to create a room!")
+
 
 async def set_bot_status(text):
     game = discord.Game(text)
     await client.change_presence(status=discord.Status.online, activity=game)
+
 
 async def send_message(channel, content):
     try:
         await channel.send(content)
     except Exception as e:
         print(e)
-    
-@client.event 
+
+
+@client.event
 async def on_message(message):
     if message.author == client.user:
         return
-    user_message = message.content
 
-    await send_message(message.channel, get_response(user_message))
+    response = get_response(message.content)
+    if response:
+        await send_message(message.channel, response)
 
-@client.event 
+
+@client.event
 async def on_raw_reaction_add(payload):
     if payload.emoji.name == "🚀":
         guild = client.get_guild(payload.guild_id)
         channel = guild.get_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
+        msg = await channel.fetch_message(payload.message_id)
 
-        if "https://" in message.content:
+        # Ignore bot's own reactions
+        if payload.user_id == client.user.id:
+            return
+
+        if "https://" in msg.content or "http://" in msg.content:
             if rooms:
-                videoTitle = addToQueue(apiKey, rooms, message.content)
-                await send_message(channel, f'"{videoTitle}" added to queue! :rocket:')
+                success = addToQueue(serverUrl, rooms, msg.content)
+                if success:
+                    await send_message(channel, "Added to queue! :rocket:")
+                else:
+                    await send_message(channel, "Failed to add to queue.")
             else:
-                link = createRoom(apiKey, rooms, message.content)
-                videoTitle = addToQueue(apiKey, rooms, message.content)
-                await send_message(channel, f'No active rooms found! :scream:\nHeres a new room for you :face_holding_back_tears::sparkles: {link}\n"{videoTitle}" added to queue! :rocket:')
+                link = createRoom(serverUrl, rooms)
+                addToQueue(serverUrl, rooms, msg.content)
+                await send_message(channel, f"No active rooms found!\nCreated: {link}\nAdded to queue! :rocket:")
         else:
-            await send_message(channel, f"\n'{message.content}' does not contain a link! :sneezing_face:")
+            await send_message(channel, f"'{msg.content}' does not contain a link!")
+
 
 def main():
     client.run(token=token)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

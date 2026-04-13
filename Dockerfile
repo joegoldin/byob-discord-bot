@@ -1,14 +1,9 @@
-FROM ubuntu:22.04
+FROM python:3.12-slim
 
-RUN apt-get update && \
-    apt-get install -y python3 python3-pip
-    
 WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN pip install -r requirements.txt
-
-EXPOSE 4000
-
-CMD ["python3", "-u", "main.py"]
+CMD ["python", "-u", "main.py"]

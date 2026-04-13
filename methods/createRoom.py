@@ -1,35 +1,21 @@
 import requests
-import json
 from datetime import datetime
 
-def createRoom(apiKey, rooms, ytLink="none"): #returns string link
-    url = "https://api.w2g.tv/rooms/create.json"
 
-    headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-    }
+def createRoom(serverUrl, rooms):
+    """Create a byob room via API. Returns the room URL string."""
+    response = requests.post(f"{serverUrl}/api/rooms")
 
-    payload = {
-        "w2g_api_key": apiKey,
-        "share": ytLink,
-        "bg_color": "#000000",
-        "bg_opacity": "50"
-    }
+    if response.status_code == 201:
+        data = response.json()["data"]
 
-    json_payload = json.dumps(payload)
+        rooms.append({
+            "room_id": data["room_id"],
+            "api_key": data["api_key"],
+            "url": data["url"],
+            "created_at": datetime.today().replace(microsecond=0),
+        })
 
-    response = requests.post(url, headers=headers, data=json_payload)
-
-    if response.status_code == 200:
-        data = response.json()
-
-        link = f"https://w2g.tv/rooms/{data['streamkey']}"
-        dateMade =  datetime.today().replace(microsecond=0) #Save room with timestamp. 
-
-        roomInfo = (data['streamkey'], dateMade)
-
-        rooms.append(roomInfo)
-        return link
+        return data["url"]
     else:
-        return "Error:", response.text
+        return f"Error creating room: {response.text}"

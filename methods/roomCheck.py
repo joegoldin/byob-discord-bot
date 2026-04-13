@@ -1,6 +1,7 @@
 from datetime import datetime
-from datetime import datetime
+
 
 def runRoomCheck(roomList):
+    """Remove rooms older than 24 hours."""
     today = datetime.today()
-    return [room for room in roomList if (today - room[1]).days < 1]
+    roomList[:] = [room for room in roomList if (today - room["created_at"]).days < 1]
