@@ -24,15 +24,12 @@ client = Client(intents=intents)
 @client.event
 async def on_ready():
     print(f"{client.user} is now running!")
-    await set_bot_status("!byob to create a room!")
+    await set_bot_status("type !w2 to start")
 
     while True:
         await asyncio.sleep(30)
         runRoomCheck(rooms)
-        if rooms:
-            await set_bot_status(f"byob room open! ({len(rooms)})")
-        else:
-            await set_bot_status("!byob to create a room!")
+        await set_bot_status("type !w2 to start")
 
 
 async def set_bot_status(text):
