@@ -10,6 +10,7 @@ from responses import get_response
 from methods.queue import addToQueue
 from methods.roomCheck import runRoomCheck
 from methods.createRoom import createRoom
+from methods.createOldW2g import is_w2g_configured
 
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
@@ -24,18 +25,22 @@ client = Client(intents=intents)
 @client.event
 async def on_ready():
     print(f"{client.user} is now running!")
-    await set_bot_status("type !w2 to start")
+    await set_bot_status(status_text())
 
     while True:
         await asyncio.sleep(30)
         runRoomCheck(rooms)
         runRoomCheck(w2g_rooms, max_age_days=2)
-        await set_bot_status("type !w2 to start")
+        await set_bot_status(status_text())
 
 
 async def set_bot_status(text):
     game = discord.Game(text)
     await client.change_presence(status=discord.Status.online, activity=game)
+
+
+def status_text():
+    return "type !w2 to start (or !oldw2)" if is_w2g_configured() else "type !w2 to start"
 
 
 async def send_message(channel, content):
