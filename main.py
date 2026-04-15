@@ -5,7 +5,7 @@ import asyncio
 from discord import Intents, Client
 from dotenv import load_dotenv
 
-from roomState import rooms
+from roomState import rooms, w2g_rooms
 from responses import get_response
 from methods.queue import addToQueue
 from methods.roomCheck import runRoomCheck
@@ -29,6 +29,7 @@ async def on_ready():
     while True:
         await asyncio.sleep(30)
         runRoomCheck(rooms)
+        runRoomCheck(w2g_rooms, max_age_days=2)
         await set_bot_status("type !w2 to start")
 
 

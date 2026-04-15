@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 from methods.createRoom import createRoom
 from methods.roomCheck import runRoomCheck
 from methods.queue import addToQueue
-from roomState import rooms
+from methods.createOldW2g import createW2gRoom, addToW2gRoom, is_w2g_configured
+from roomState import rooms, w2g_rooms
 
 load_dotenv()
 serverUrl = os.getenv("BYOB_SERVER", "https://byob.video")
@@ -77,21 +78,56 @@ def get_response(message):
             return f"Room created: {room_url}\nAdded to queue! :rocket:"
         return f"Room created: {room_url}"
 
+    # Legacy w2g.tv: !oldw2 [url]
+    # Reuses the most recent tracked w2g room (up to 2 days old, see roomCheck)
+    # instead of spawning a new room every call.
+    if lower.startswith("!oldw2"):
+        if not is_w2g_configured():
+            return "Legacy w2g.tv support is not configured (set W2G_API_KEY to enable)."
+
+        # Extract optional URL
+        parts = p_message.split(maxsplit=1)
+        share_url = None
+        if len(parts) > 1:
+            rest = parts[1].strip()
+            if rest.startswith(("http://", "https://")):
+                share_url = rest
+
+        if w2g_rooms:
+            current = w2g_rooms[-1]
+            if share_url:
+                ok = addToW2gRoom(current["streamkey"], share_url)
+                if ok:
+                    return f"w2g.tv room: {current['url']}\nAdded: {share_url}"
+                return f"w2g.tv room: {current['url']}\n(Failed to add {share_url})"
+            return f"w2g.tv room: {current['url']}"
+
+        # No active room — create one (optionally seeded with the URL)
+        new_url = createW2gRoom(w2g_rooms, share_url)
+        if not new_url:
+            return "Failed to create w2g.tv room."
+        if share_url:
+            return f"Created w2g.tv room: {new_url}\nAdded: {share_url}"
+        return f"Created w2g.tv room: {new_url}"
+
     # Help
     if lower.startswith("!help"):
-        return (
-            "```\n"
-            "!byob [url]     Create a room (optionally with a video)\n"
-            "!q <url>         Add a video to the queue (or react with 🚀)\n"
-            "!byob c          Show the current room\n"
-            "!byob ls         List all active rooms\n"
-            "!byob set <n>    Switch to a different room\n"
-            "!help            Show this help\n"
-            "!ver             Show version\n"
-            "\n"
-            "!w2 also works as a shortcut for !byob\n"
-            "```"
-        )
+        lines = [
+            "```",
+            "!byob [url]      Create a room (optionally with a video)",
+            "!q <url>         Add a video to the queue (or react with 🚀)",
+            "!byob c          Show the current room",
+            "!byob ls         List all active rooms",
+            "!byob set <n>    Switch to a different room",
+            "!help            Show this help",
+            "!ver             Show version",
+        ]
+        if is_w2g_configured():
+            lines.append("!oldw2 [url]     Create a legacy w2g.tv room")
+        lines.append("")
+        lines.append("!w2 also works as a shortcut for !byob")
+        lines.append("```")
+        return "\n".join(lines)
 
     # Version
     if lower.startswith("!ver"):
