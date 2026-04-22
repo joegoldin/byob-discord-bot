@@ -1,16 +1,16 @@
-import os
-import discord
 import asyncio
+import os
 
-from discord import Intents, Client
+import discord
+from discord import Client, Intents
 from dotenv import load_dotenv
 
-from roomState import rooms, w2g_rooms
-from responses import get_response
+from methods.createOldW2g import is_w2g_configured
+from methods.createRoom import createRoom
 from methods.queue import addToQueue
 from methods.roomCheck import runRoomCheck
-from methods.createRoom import createRoom
-from methods.createOldW2g import is_w2g_configured
+from responses import get_response
+from roomState import rooms, w2g_rooms
 
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
@@ -40,7 +40,7 @@ async def set_bot_status(text):
 
 
 def status_text():
-    return "type !w2 to start (or !oldw2)" if is_w2g_configured() else "type !w2 to start"
+    return "type !w2 to start"
 
 
 async def send_message(channel, content):
@@ -81,7 +81,10 @@ async def on_raw_reaction_add(payload):
             else:
                 link = createRoom(serverUrl, rooms)
                 addToQueue(serverUrl, rooms, msg.content)
-                await send_message(channel, f"No active rooms found!\nCreated: {link}\nAdded to queue! :rocket:")
+                await send_message(
+                    channel,
+                    f"No active rooms found!\nCreated: {link}\nAdded to queue! :rocket:",
+                )
         else:
             await send_message(channel, f"'{msg.content}' does not contain a link!")
 
